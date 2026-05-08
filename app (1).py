@@ -338,6 +338,21 @@ def halaman_customer():
     </div>
     """, unsafe_allow_html=True)
  
+    # ── QR Code website (agar mudah dibagikan / dipindai customer) ─────────────
+    website_url = st.query_params.get("url", "https://hadipranapercetakanapp.streamlit.app")
+    qr_buf = generate_qr(website_url)
+    b64_qr = img_to_b64(qr_buf)
+    st.markdown(
+        f"<div style='text-align:center;margin-bottom:1rem;'>"
+        f"<div style='display:inline-block;background:white;padding:0.75rem;border-radius:12px;"
+        f"box-shadow:0 4px 20px rgba(255,210,0,0.25);'>"
+        f"<img src='data:image/png;base64,{b64_qr}' style='width:120px;height:120px;display:block;'/>"
+        f"</div>"
+        f"<div style='font-size:0.7rem;color:#8b8bab;margin-top:0.4rem;letter-spacing:1px;'>SCAN UNTUK ORDER PRINT</div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+ 
     # Banner antrian sedang dikerjakan
     sedang = get_sedang_dikerjakan()
     if sedang:
@@ -355,18 +370,23 @@ def halaman_customer():
     # Daftar antrian menunggu
     menunggu_list = [a for a in get_antrian_aktif() if a[3] == "Menunggu"]
     if menunggu_list:
-        st.markdown('<div class="card"><div class="card-title">📋 Antrian Menunggu</div>', unsafe_allow_html=True)
+        # ✅ FIX: Build semua HTML dalam SATU string, lalu render sekali
+        items_html = ""
         for a in menunggu_list:
-            st.markdown(f"""
-            <div class="antrian-item">
-                <div class="antrian-item-number">{a[0]:02d}</div>
-                <div class="antrian-item-info">
-                    <div class="antrian-item-name">{a[1]}</div>
-                    <div class="antrian-item-type">{a[2]}</div>
-                </div>
-                {status_badge(a[3])}
-            </div>""", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            items_html += (
+                f"<div class='antrian-item'>"
+                f"<div class='antrian-item-number'>{a[0]:02d}</div>"
+                f"<div class='antrian-item-info'>"
+                f"<div class='antrian-item-name'>{a[1]}</div>"
+                f"<div class='antrian-item-type'>{a[2]}</div>"
+                f"</div>"
+                f"{status_badge(a[3])}"
+                f"</div>"
+            )
+        st.markdown(
+            f"<div class='card'><div class='card-title'>📋 Antrian Menunggu</div>{items_html}</div>",
+            unsafe_allow_html=True
+        )
  
     st.markdown("---")
     tab1, tab2 = st.tabs(["📤 Pesan Print / Scan", "🔍 Cek Status Saya"])
@@ -393,24 +413,27 @@ def halaman_customer():
             d = st.session_state["order"]
             qris_url = get_setting("qris_url")
  
-            st.markdown(f"""
-            <div class="qris-box">
-                <div class="qris-title">💳 Scan QRIS untuk Membayar</div>
-                <div class="qris-sub">Scan QR di bawah menggunakan aplikasi e-wallet atau mobile banking</div>
-            """, unsafe_allow_html=True)
- 
+            # ✅ FIX: Build semua HTML QRIS box dalam satu string
             if qris_url:
-                st.markdown(f'<img class="qris-img" src="{qris_url}" alt="QRIS Hadi Prana"/>', unsafe_allow_html=True)
+                img_html = f'<img class="qris-img" src="{qris_url}" alt="QRIS Hadi Prana"/>'
             else:
-                st.warning("⚠️ QR QRIS belum diatur oleh admin. Minta Pak Hadi upload foto QRIS di halaman admin.")
+                img_html = (
+                    "<div style='background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);"
+                    "border-radius:10px;padding:1rem;margin:0.75rem 0;font-size:0.85rem;color:#fbbf24;'>"
+                    "⚠️ QR QRIS belum diatur admin. Minta Pak Hadi upload foto QRIS di halaman admin.</div>"
+                )
  
-            st.markdown(f"""
-                <div class="qris-total">{rupiah(d['harga'])}</div>
-                <div style="font-size:0.85rem;color:#e0e0f0;">
-                    {d['nama']} · {d['jenis']} · {d['lembar']} lembar
-                </div>
-                <div class="qris-note">⚠️ Pastikan pembayaran sudah berhasil sebelum klik konfirmasi!</div>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='qris-box'>"
+                f"<div class='qris-title'>💳 Scan QRIS untuk Membayar</div>"
+                f"<div class='qris-sub'>Scan QR di bawah menggunakan aplikasi e-wallet atau mobile banking</div>"
+                f"{img_html}"
+                f"<div class='qris-total'>{rupiah(d['harga'])}</div>"
+                f"<div style='font-size:0.85rem;color:#e0e0f0;'>{d['nama']} · {d['jenis']} · {d['lembar']} lembar</div>"
+                f"<div class='qris-note'>⚠️ Pastikan pembayaran sudah berhasil sebelum klik konfirmasi!</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
  
             col_batal, col_konfirm = st.columns(2)
             with col_batal:
@@ -433,29 +456,43 @@ def halaman_customer():
         elif tahap == "tagihan":
             d = st.session_state["order"]
  
-            st.markdown(f"""
-            <div class="tagihan-box">
-                <div class="tagihan-title">🧾 Tagihan Pesanan</div>
-                <div class="tagihan-sub">Cek rincian pesananmu sebelum membayar</div>
-                <div class="tagihan-rincian">
-                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;">
-                        <span>Layanan</span><span style="color:#e0e0f0;font-weight:600;">{d['jenis']}</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;">
-                        <span>Jumlah Lembar</span><span style="color:#e0e0f0;font-weight:600;">{d['lembar']} lembar</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;">
-                        <span>File</span><span style="color:#e0e0f0;">{d['nama_file']}</span>
-                    </div>
-                    {"<div style='display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;'><span>Catatan</span><span style='color:#e0e0f0;'>" + d['catatan'] + "</span></div>" if d['catatan'] else ""}
-                    <hr style="margin:0.75rem 0;border-color:rgba(255,255,255,0.1)!important;"/>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span style="font-size:0.9rem;font-weight:700;color:#a78bfa;">Total Bayar</span>
-                        <span style="font-family:'Space Mono',monospace;font-size:1.5rem;font-weight:700;color:#ffd200;">{rupiah(d['harga'])}</span>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # ✅ FIX: Hindari <hr> dalam markdown HTML (menyebabkan code block).
+            # Ganti dengan div bergaris border. Build semua dalam satu string.
+            baris_catatan_html = ""
+            if d.get("catatan"):
+                baris_catatan_html = (
+                    "<div style='display:flex;justify-content:space-between;"
+                    "font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;'>"
+                    "<span>Catatan</span>"
+                    f"<span style='color:#e0e0f0;'>{d['catatan']}</span>"
+                    "</div>"
+                )
+ 
+            html_tagihan = (
+                "<div style='background:rgba(167,139,250,0.08);border:2px solid rgba(167,139,250,0.4);"
+                "border-radius:20px;padding:1.5rem;margin-bottom:1rem;text-align:center;'>"
+                "<div style='font-size:1rem;font-weight:800;color:#a78bfa;margin-bottom:0.25rem;'>🧾 Tagihan Pesanan</div>"
+                "<div style='font-size:0.78rem;color:#a0a0c0;margin-bottom:1rem;'>Cek rincian pesananmu sebelum membayar</div>"
+                "<div style='background:rgba(255,255,255,0.05);border-radius:12px;padding:1rem;margin-bottom:1rem;text-align:left;'>"
+                "<div style='display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;'>"
+                f"<span>Layanan</span><span style='color:#e0e0f0;font-weight:600;'>{d['jenis']}</span>"
+                "</div>"
+                "<div style='display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;'>"
+                f"<span>Jumlah Lembar</span><span style='color:#e0e0f0;font-weight:600;'>{d['lembar']} lembar</span>"
+                "</div>"
+                "<div style='display:flex;justify-content:space-between;font-size:0.85rem;color:#c0c0d8;margin-bottom:6px;'>"
+                f"<span>File</span><span style='color:#e0e0f0;'>{d['nama_file']}</span>"
+                "</div>"
+                + baris_catatan_html +
+                "<div style='border-top:1px solid rgba(255,255,255,0.1);margin:0.75rem 0;'></div>"
+                "<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                "<span style='font-size:0.9rem;font-weight:700;color:#a78bfa;'>Total Bayar</span>"
+                f"<span style='font-family:Space Mono,monospace;font-size:1.5rem;font-weight:700;color:#ffd200;'>{rupiah(d['harga'])}</span>"
+                "</div>"
+                "</div>"
+                "</div>"
+            )
+            st.markdown(html_tagihan, unsafe_allow_html=True)
  
             st.markdown("##### Pilih Metode Pembayaran")
             col_cash, col_qris = st.columns(2)
@@ -578,34 +615,46 @@ def halaman_customer():
             if data:
                 _, nomor, nama, nama_file, jenis, bayar, status, waktu_pesan, waktu_selesai, lembar, harga = data
                 warna = {"Menunggu":"#fbbf24","Dikerjakan":"#60a5fa","Selesai":"#34d399"}.get(status,"#fbbf24")
-                st.markdown(f"""
-                <div class="card">
-                    <div style="text-align:center;margin-bottom:1rem;">
-                        <div style="font-family:'Space Mono',monospace;font-size:3.5rem;font-weight:700;color:{warna};line-height:1;">{nomor:02d}</div>
-                        <div style="margin-top:0.5rem;">{status_badge(status)}</div>
-                    </div>
-                    <div style="display:grid;gap:0.5rem;font-size:0.85rem;">
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">Nama</span><span style="color:#e0e0f0;font-weight:600;">{nama}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">File</span><span style="color:#e0e0f0;">{nama_file}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">Layanan</span><span style="color:#e0e0f0;">{jenis} · {lembar} lembar</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">Total</span><span style="color:#ffd200;font-weight:700;">{rupiah(harga)}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">Pembayaran</span><span style="color:#e0e0f0;">{bayar}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;">
-                            <span style="color:#8b8bab;">Waktu Pesan</span><span style="color:#e0e0f0;">{waktu_pesan[11:16]}</span>
-                        </div>
-                        {"<div style='display:flex;justify-content:space-between;'><span style='color:#8b8bab;'>Selesai</span><span style='color:#34d399;font-weight:700;'>" + waktu_selesai[11:16] + "</span></div>" if waktu_selesai else ""}
-                    </div>
-                </div>""", unsafe_allow_html=True)
+                # Baris selesai dibuat sebagai variabel dulu agar tidak bug di f-string
+                baris_selesai = ""
+                if waktu_selesai:
+                    jam_selesai = waktu_selesai[11:16]
+                    baris_selesai = (
+                        f"<div style='display:flex;justify-content:space-between;'>"
+                        f"<span style='color:#8b8bab;'>Selesai</span>"
+                        f"<span style='color:#34d399;font-weight:700;'>{jam_selesai}</span>"
+                        f"</div>"
+                    )
+                html_status = (
+                    "<div class='card'>"
+                    "<div style='text-align:center;margin-bottom:1rem;'>"
+                    f"<div style='font-family:Space Mono,monospace;font-size:3.5rem;"
+                    f"font-weight:700;color:{warna};line-height:1;'>{nomor:02d}</div>"
+                    f"<div style='margin-top:0.5rem;'>{status_badge(status)}</div>"
+                    "</div>"
+                    "<div style='display:grid;gap:0.5rem;font-size:0.85rem;'>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>Nama</span>"
+                    f"<span style='color:#e0e0f0;font-weight:600;'>{nama}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>File</span>"
+                    f"<span style='color:#e0e0f0;'>{nama_file}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>Layanan</span>"
+                    f"<span style='color:#e0e0f0;'>{jenis} · {lembar} lembar</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>Total</span>"
+                    f"<span style='color:#ffd200;font-weight:700;'>{rupiah(harga)}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>Pembayaran</span>"
+                    f"<span style='color:#e0e0f0;'>{bayar}</span></div>"
+                    f"<div style='display:flex;justify-content:space-between;'>"
+                    f"<span style='color:#8b8bab;'>Waktu Pesan</span>"
+                    f"<span style='color:#e0e0f0;'>{waktu_pesan[11:16]}</span></div>"
+                    + baris_selesai +
+                    "</div></div>"
+                )
+                st.markdown(html_status, unsafe_allow_html=True)
  
                 if status == "Selesai":
                     st.success("✅ Dokumen kamu sudah selesai! Silakan ambil di kasir Pak Hadi.")
@@ -772,7 +821,15 @@ def halaman_admin():
     # ── TAB QR CODE & WA ──────────────────────────────────────────────────────
     with tab_qr:
         st.markdown("#### 📱 QR Code untuk Ditempel di Kasir")
-        url_input = st.text_input("URL Website", value="https://hadipranaprint.streamlit.app")
+        url_input = st.text_input("URL Website (sesuaikan dengan URL Streamlit kamu yang baru)",
+                                   value="https://hadipranapercetakanapp.streamlit.app",
+                                   placeholder="https://xxx.streamlit.app")
+        
+        # Info link admin
+        if url_input:
+            admin_url = url_input.rstrip("/") + "?mode=admin"
+            st.info(f"🔐 **Link Admin Pak Hadi:** `{admin_url}`\n\nBookmark link ini dan jangan dibagikan ke customer!")
+ 
         if url_input:
             qr_buf = generate_qr(url_input)
             b64 = img_to_b64(qr_buf)
@@ -834,4 +891,3 @@ def main():
  
 if __name__ == "__main__":
     main()
-
